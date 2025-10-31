@@ -1,2 +1,46 @@
-repo init -u https://github.com/VoltageOS/manifest.git -b 14
-repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j2
+name: Sync VoltageOS Source (sky)
+
+on:
+  workflow_dispatch:  # run manually
+
+jobs:
+  sync:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo (local_manifests)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git-core repo openjdk-11-jdk bc bison build-essential \
+            curl zip unzip python3 python-is-python3 ccache
+
+      - name: Install repo tool
+        run: |
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          echo 'export PATH=~/bin:$PATH' >> ~/.bashrc
+          source ~/.bashrc
+
+      - name: Initialize VoltageOS manifest
+        run: |
+          mkdir -p android && cd android
+          repo init -u https://github.com/VoltageOS/manifest.git -b 14
+          repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j2
+
+      - name: Compress synced source
+        run: |
+          cd ..
+          tar -czf voltage_source.tar.gz android
+
+      - name: Upload source to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: voltage-source
+          path: voltage_source.tar.gz
