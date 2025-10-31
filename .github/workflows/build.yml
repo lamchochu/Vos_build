@@ -1,23 +1,25 @@
 name: Build VoltageOS ROM (sky)
 
 on:
-  workflow_dispatch:  # run manually from Actions tab
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 360
+    timeout-minutes: 480  # 8-hour limit for large builds
+
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           sudo apt update
           sudo apt install -y git-core repo openjdk-11-jdk bc bison build-essential \
-            curl zip unzip python3 python-is-python3 ccache
+            curl zip unzip python3 python-is-python3 ccache flex lzop \
+            pngcrush schedtool squashfs-tools xsltproc zip zlib1g-dev
 
-      - name: Install repo tool
+      - name: Setup repo tool
         run: |
           mkdir -p ~/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
@@ -29,15 +31,14 @@ jobs:
         run: |
           mkdir -p android && cd android
           repo init -u https://github.com/VoltageOS/manifest.git -b 14
-          repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j2
+          repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j4
 
-      - name: Clone device sources
+      - name: Clone device, vendor & kernel trees
         run: |
           cd android
-          git clone https://github.com/daveshbackup/device_xiaomi_sky.git device/xiaomi/sky
-          # Agar vendor/kernel repos hain to unhe yahan add kar:
-          # git clone https://github.com/daveshbackup/vendor_xiaomi_sky.git vendor/xiaomi/sky
-          # git clone https://github.com/daveshbackup/kernel_xiaomi_sky.git kernel/xiaomi/sky
+          git clone https://github.com/xiaomi-sm4450-sky/android_device_xiaomi_sky.git device/xiaomi/sky
+          git clone https://github.com/xiaomi-sm4450-sky/android_vendor_xiaomi_sky.git vendor/xiaomi/sky
+          git clone https://github.com/xiaomi-sm4450-sky/android_xiaomi_sky_kernel.git kernel/xiaomi/sky
 
       - name: Setup build environment
         run: |
@@ -46,17 +47,17 @@ jobs:
           export USE_CCACHE=1
           export CCACHE_DIR=~/.ccache
           ccache -M 50G
-          git config --global user.email "you@example.com"
-          git config --global user.name "builder"
+          git config --global user.email "builder@github.com"
+          git config --global user.name "VoltageOS Builder"
 
-      - name: Build ROM
+      - name: Build VoltageOS ROM
         run: |
           cd android
           lunch voltage_sky-userdebug
           mka bacon -j$(nproc) || (tail -n 200 out/*/last_log.txt || true; exit 1)
 
-      - name: Upload ROM zip
+      - name: Upload ROM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: voltageos-sky
+          name: VoltageOS-sky
           path: android/out/target/product/sky/*.zip
